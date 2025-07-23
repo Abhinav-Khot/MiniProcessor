@@ -1,0 +1,17 @@
+`timescale 1ns / 1ps
+
+module instr_register_file(
+input en_write,  clk, [7 : 0] write_data, [4:0] write_address, [4:0] read_address,
+    output [7:0] read_data
+    );
+
+        reg [7:0] registers [31:0];
+
+        assign read_data = registers[read_address]; //read whenever
+
+        always @ (posedge clk)//write only on clock edge
+        begin
+            if(en_write) registers[write_address] <= write_data;
+            else begin end
+        end
+endmodule

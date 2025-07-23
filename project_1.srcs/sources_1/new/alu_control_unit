@@ -1,0 +1,193 @@
+`timescale 1ns / 1ps
+
+module alu_control_unit(
+    input clk,
+    input reset,
+    input [4:0] first_instruction_address
+);
+
+    reg en_write;
+    reg [7:0] write_data;
+    reg [3:0] write_address;
+    reg [3:0] read_address;
+
+    wire [7:0] read_data;
+    wire [7:0] read_data_inst;
+    reg [4:0] read_address_inst;
+    reg [4:0] PC;
+    reg [7:0] curr_instruction;
+
+    // Data registers
+    register_file regs(
+        .clk(clk),
+        .en_write(en_write),
+        .write_data(write_data),
+        .write_address(write_address),
+        .read_address(read_address),
+        .read_data(read_data)
+    );
+
+    // Instruction registers
+    instr_register_file instructions(
+        .clk(clk),
+        .en_write(1'b0),
+        .write_data(8'b0),
+        .write_address(5'b0),
+        .read_address(read_address_inst),
+        .read_data(read_data_inst)
+    );
+
+    reg [7:0] ACC, EXT;
+    reg C_B;
+    reg halt_signal;
+    reg [7:0] next_ACC;
+    reg [7:0] next_EXT;
+    reg [4:0] next_PC;
+    reg next_C_B;
+
+
+    always @(*) begin
+        read_address_inst = PC;
+        curr_instruction = read_data_inst;
+    end
+
+    //decode and execute instruction and store result for next clock edge
+    always @(*) begin
+        en_write = 1'b0;
+
+        if(~halt_signal) begin
+
+        next_ACC = ACC;
+        next_EXT = EXT;
+        next_PC = PC + 1;
+        next_C_B = C_B;
+        read_address = curr_instruction[3:0];
+
+            casex(curr_instruction)
+                8'b0000000: begin
+                    // NO operation
+                end
+
+                8'b0001xxxx: begin
+                    // ADD R_i and ACC
+                    {next_C_B, next_ACC} = ACC + read_data;
+                end
+
+                8'b0010xxxx: begin
+                    // Subtract R_i from ACC
+                    {next_C_B, next_ACC} = ACC - read_data;
+                end
+
+                8'b0011xxxx: begin
+                    // MULTILY ACC and R_i
+                    {next_EXT, next_ACC} = ACC * read_data;
+                end
+
+                8'b00000001: begin
+                    // Left shift ACC
+                    next_ACC = (ACC << 1);
+                end
+
+                8'b00000010: begin
+                    // RIght shift ACC
+                    next_ACC = (ACC >> 1);
+                end
+
+                8'b00000100: begin
+                    // ciruclar Left shift ACC
+                    next_ACC = {ACC[6:0], ACC[7]};
+                end
+
+                8'b00000011: begin
+                    // Circular Right Shift ACC
+                    next_ACC = {ACC[0], ACC[7:1]};
+                end
+
+                8'b00000101: begin
+                    // Arithmetic shift right ACC
+                    next_ACC = {ACC[7], ACC[7:1]};
+                end
+
+                8'b00000110: begin
+                    // Increment ACC
+                    {next_C_B, next_ACC} = ACC + 1;
+                end
+
+                8'b00000111: begin
+                    // Decrement ACC
+                    {next_C_B, next_ACC} = ACC - 1;
+                end
+
+                8'b0101xxxx: begin
+                    // Bitwise AND ACC and R_i
+                    next_ACC = read_data & ACC;
+                end
+
+                8'b0110xxxx: begin
+                    // Bitwise XOR ACC and R_i
+                    next_ACC = read_data ^ ACC;
+                end
+
+                8'b0111xxxx: begin
+                    //Compare ACC and R_i
+                    next_C_B = (read_data >= ACC);
+                end
+
+                8'b1000xxxx: begin
+                    //Branch to given address if C_B is 1
+                    next_PC = C_B ? read_address : PC+1;
+                end
+
+                8'b1001xxxx: begin
+                    // MOVE from R_i to ACC
+                    next_ACC = read_data;
+                end
+
+                8'b1010xxxx: begin
+                    // MOVE from ACC to R_i
+                    en_write = 1'b1;
+                    write_address = read_address;
+                    write_data = ACC;
+                end
+
+                8'b1011xxxx: begin
+                    // Return to given address
+                    next_PC = read_address;
+                end
+
+                8'b11111111: begin
+                    // Halt
+                    halt_signal = 1'b1;
+                end
+
+                default: begin
+                    // do nothing
+                end
+            endcase
+        end
+        else begin end
+    end
+
+    // Update regs on clock edge
+    always @(posedge clk or negedge reset) begin
+        if(~reset) begin
+            PC <= first_instruction_address;
+            ACC <= 8'b0;
+            EXT <= 8'b0;
+            C_B <= 1'b0;
+            en_write <= 1'b0;
+            write_data <= 8'b0;
+            write_address <= 5'b0;
+            halt_signal <= 1'b0;
+        end
+        else if(~halt_signal) begin
+            PC <= next_PC;
+            ACC <= next_ACC;
+            EXT <= next_EXT;
+            C_B <= next_C_B;
+        end
+        else begin end
+    end
+
+endmodule
+
