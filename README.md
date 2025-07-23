@@ -1,6 +1,6 @@
 # Mini Processor (Verilog)
 
-This repository contains a simple 8-bit processor written in Verilog.
+This repository contains a simple processor written in Verilog.
 
 - Source files: `project_1.srcs/sources_1`
 - Testbench files: `project_1.srcs/sim_1`
